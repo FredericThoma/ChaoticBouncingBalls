@@ -1,79 +1,86 @@
 #!/usr/bin/env python3
 import pygame
-import math
+from simple_vect import *
 
-
+pygame.init()
 screen = pygame.display.set_mode((900, 900))
-width = screen.get_width()
-height = screen.get_height()
-white = (255, 255, 255)
-ball_r = 15
-container_r = width / 2
 g = 0.01
 
 
 class Ball:
     def __init__(self, x, y, color):
-        self.pos_x = x
-        self.pos_y = y
-        self.vel_x = 0
-        self.vel_y = 0
-        self.acc_x = 0
-        self.acc_y = 1
-        self.falling = True
-        self.pos_arr = []
-        self.count = 0
+        self.pos = Vect(x, y)
+        self.vel = Vect(0, 0)
+        self.acc = Vect(0, 1)
         self.color = color
+        self.r = 25
 
     def show(self):
-        pygame.draw.circle(screen, white, (self.pos_x, self.pos_y), ball_r)
+        pygame.draw.circle(screen, self.color, self.pos.to_tuple(), self.r)
 
-    def update(self):
-        self.count += 1
-        if self.count % 5 == 0:
-            self.pos_arr.append((self.pos_x, self.pos_y))
-        self.vel_x += self.acc_x * g
-        self.vel_y += self.acc_y * g
-        self.pos_x += self.vel_x
-        self.pos_y += self.vel_y
-        if len(self.pos_arr) > 1000:
-            self.pos_arr = self.pos_arr[1:]
-        for point in self.pos_arr:
-            pygame.draw.circle(screen, self.color, point, 1)
-        m_x = width / 2
-        m_y = height / 2
-        d_x = self.pos_x - m_x
-        d_y = self.pos_y - m_y
-        d_to_cont = math.sqrt(d_x ** 2 + d_y ** 2)
-        if d_to_cont >= container_r - ball_r:
-            v = math.sqrt(self.vel_x ** 2 + self.vel_y ** 2)
-            angle_to_coll = math.atan2(-d_y, d_x)
-            old_angle = math.atan2(-self.vel_y, self.vel_x)
-            new_angle = 2 * angle_to_coll - old_angle
-            self.vel_x = -v * math.cos(new_angle)
-            self.vel_y = v * math.sin(new_angle)
+    def update(self, container_r, center: Vect):
+        self.vel += self.acc.multiply(g)
+        self.pos += self.vel
+        direction = self.pos - center
+        dist_to_center = mag(direction)
+        if dist_to_center < container_r - self.r:
+            return
+        else:
+            self.handle_collision(direction)
+
+    def handle_collision(self, direction: Vect):
+        v = mag(self.vel)
+        collision_angle = math.atan2(-direction[1], direction[0])
+        old_angle = math.atan2(-self.vel[1], self.vel[0])
+        new_angle = 2 * collision_angle - old_angle
+        new_vel_x = -v * math.cos(new_angle)
+        new_vel_y = v * math.sin(new_angle)
+        self.vel = Vect(new_vel_x, new_vel_y)
+        self.pos += self.vel
+
+    def get_pos(self):
+        return self.pos.to_tuple()
 
 
 def main():
-    pygame.init()
+    width = screen.get_width()
+    height = screen.get_height()
+    ball_1 = Ball(width // 2 - 5, height // 8, (0, 255, 0))
+    ball_2 = Ball(ball_1.pos[0] + 0.1, ball_1.pos[1], (0, 0, 255))  # Initial position very close to ball_1
+    container_r = width // 2
+    center = Vect(width // 2, height // 2)
     running = True
-    ball = Ball(width // 2 + 1, height // 8, (0, 255, 0))
-    ball_2 = Ball(width // 2 + 0.5, height // 8, (0, 0, 255))
-
+    counter = 0
+    prev_ball_positions = []
     while running:
-
         screen.fill(0)
-        pygame.draw.circle(screen, white, (height / 2, height / 2), height / 2)
-        pygame.draw.circle(screen, (0, 0, 0), (height / 2, height / 2), height / 2 - 10)
-        ball.show()
+        pygame.draw.circle(screen, (255, 255, 255), center.to_tuple(), container_r)
+        pygame.draw.circle(screen, (0, 0, 0), center.to_tuple(), container_r - 10)
+        ball_1.update(container_r, center)
+        ball_2.update(container_r, center)
+        if counter % 5 == 0:
+            prev_ball_positions = update_prev_ball_positions(prev_ball_positions, ball_1, ball_2)
+        draw_prev_positions(prev_ball_positions)
+        ball_1.show()
         ball_2.show()
-        ball.update()
-        ball_2.update()
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
         pygame.display.update()
         pygame.display.flip()
+        counter += 1
+
+
+def draw_prev_positions(prev_bp):
+    for index, pos in enumerate(prev_bp):
+        color = (0, 255, 0, 100) if index % 2 == 0 else (0, 0, 255, 100)
+        pygame.draw.circle(screen, color, pos, 1)
+
+
+def update_prev_ball_positions(prev_bp, b1, b2):
+    prev_bp.append(b1.get_pos())
+    prev_bp.append(b2.get_pos())
+    return prev_bp if len(prev_bp) < 1000 else prev_bp[2:]
 
 
 if __name__ == '__main__':
